@@ -1,0 +1,133 @@
+experiment:
+  exp_name: null
+  output_root: outputs
+  seed: 7
+
+dims:
+  action: 20
+  proprio: 20
+  force: 6
+
+model:
+  size: 0p3b
+  image_encoder:
+    pretrained: true
+    trainable: false
+    image_size: 224
+    output_tokens: null
+  trunk:
+    rope_base: 10000.0
+    dropout: 0.0
+  action_expert:
+    time_inject: adarms  # "adarms" (pi05-style AdaLN-Zero on time) or "add" (single-injection at input)
+  world_model:
+    enabled: true
+    future_latent_weight: 1.0
+    proprio_weight: 0.2
+    force_weight: 0.2
+  presets:
+    0p3b:
+      image_encoder: {type: resnet18}
+      context: {vocab_size: 8192, max_text_tokens: 16}
+      trunk: {width: 1024, depth: 18, num_heads: 16, mlp_ratio: 4.0}
+      action_expert: {width: 1024, depth: 6, num_heads: 16, mlp_ratio: 4.0, flow_steps: 8}
+      world_model: {latent_dim: 1024}
+    1b:
+      image_encoder: {type: resnet50}
+      context: {vocab_size: 16384, max_text_tokens: 24}
+      trunk: {width: 1536, depth: 28, num_heads: 24, mlp_ratio: 4.0}
+      action_expert: {width: 1536, depth: 8, num_heads: 24, mlp_ratio: 4.0, flow_steps: 8}
+      world_model: {latent_dim: 1536}
+    3b:
+      image_encoder: {type: siglip}
+      context: {vocab_size: 16384, max_text_tokens: 24}
+      trunk: {width: 2304, depth: 32, num_heads: 24, mlp_ratio: 4.5}
+      action_expert: {width: 2304, depth: 10, num_heads: 24, mlp_ratio: 4.0, flow_steps: 10}
+      world_model: {latent_dim: 2304}
+    5b:
+      image_encoder: {type: siglip}
+      context: {vocab_size: 16384, max_text_tokens: 32}
+      trunk: {width: 2816, depth: 36, num_heads: 32, mlp_ratio: 4.5}
+      action_expert: {width: 2816, depth: 12, num_heads: 32, mlp_ratio: 4.0, flow_steps: 10}
+      world_model: {latent_dim: 2816}
+    7b:
+      image_encoder: {type: siglip}
+      context: {vocab_size: 16384, max_text_tokens: 32}
+      trunk: {width: 3072, depth: 40, num_heads: 32, mlp_ratio: 4.5}
+      action_expert: {width: 3072, depth: 14, num_heads: 32, mlp_ratio: 4.0, flow_steps: 10}
+      world_model: {latent_dim: 3072}
+
+data:
+  type: synthetic
+  norm_mode: zscore  # "zscore" or "quantile"; quantile maps actions/proprio/force to [-1, 1]
+  augmentation:
+    enabled: true
+    resized_crop_scale_min: 0.95
+    rotation_degrees: 5.0
+    brightness: 0.3
+    contrast: 0.4
+    saturation: 0.5
+    hue: 0.0
+  packing:
+    bucket_boundaries: [1, 2, 4]
+    tokens_per_frame_estimate: 32
+    context_tokens_estimate: 24
+    drop_last: true
+    default_max_past_frames: 4
+    default_min_past_frames: 1
+    default_frame_sampling: max
+    default_token_budget: 640
+  curriculum:
+    enabled: true
+    unit: epoch
+    stages:
+      - name: single_frame
+        max_past_frames: 1
+        min_past_frames: 1
+        frame_sampling: max
+        token_budget: 448
+        until_epoch: 1
+      - name: short_window
+        max_past_frames: 2
+        min_past_frames: 1
+        frame_sampling: uniform
+        token_budget: 528
+        until_epoch: 2
+      - name: full_window
+        max_past_frames: 4
+        min_past_frames: 1
+        frame_sampling: uniform
+        token_budget: 912
+  shared:
+    sequence_length: 4
+    action_horizon: 4
+    image_size: 96
+    include_head: true
+    include_proprio: true
+    include_force: true
+    include_past_action: true
+    include_future_targets: true
+  train:
+    num_samples: 32
+    seed: 7
+  eval:
+    num_samples: 8
+    seed: 11
+
+train:
+  epochs: 1
+  eval_batch_size: 2
+  num_workers: 0
+  device: cpu
+  grad_clip_norm: 1.0
+  optim:
+    lr: 3.0e-4
+    min_lr: 1.0e-5
+    weight_decay: 0.01
+    betas: [0.9, 0.95]
+  scheduler:
+    type: cosine
+
+hydra:
+  run:
+    dir: .

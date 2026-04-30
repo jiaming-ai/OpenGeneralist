@@ -3,3 +3,11 @@
 
 AGENTS.md
 CLAUDE.md
+
+**/*.mda
+outputs/
+logs/
+temp/
+.venv/
+.pytest_cache/
+.hydra/
